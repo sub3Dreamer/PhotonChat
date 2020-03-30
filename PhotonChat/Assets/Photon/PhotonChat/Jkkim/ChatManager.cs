@@ -1,17 +1,9 @@
 ﻿using ExitGames.Client.Photon;
 using Photon.Chat;
-using System.Collections;
-using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class ChatManager : MonoBehaviour, IChatClientListener
 {
-    const string CHAT_CHANNEL_JOIN_MESSAGE_FORMAT = "{0}에 입장하였습니다.";
-    const string CHAT_JOIN_FRIEND = "접속한 친구 : ";
-    const string COMMA = ",";
-
     [Header("Login UI")]
     [SerializeField] LoginUI _loginUI;
 
@@ -20,6 +12,8 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 
     [Header("Popup")]
     [SerializeField] FriendPopup _friendPopup;
+    [SerializeField] LoadingPopup _loadingPopup;
+    [SerializeField] AlertPopup _alertPopup;
 
     [Header("Photon Chat Module")]
     [SerializeField] internal ChatSettings _chatAppSettings;
@@ -51,7 +45,7 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         }
     }
 
-    public string UserName
+    public string UserID
     {
         get
         {
@@ -65,28 +59,28 @@ public class ChatManager : MonoBehaviour, IChatClientListener
     {
         if (level == DebugLevel.ERROR)
         {
-            Debug.LogError(message);
+            CommonDebug.LogError(message);
         }
         else if (level == DebugLevel.WARNING)
         {
-            Debug.LogWarning(message);
+            CommonDebug.LogWarning(message);
         }
         else
         {
-            Debug.Log(message);
+            CommonDebug.Log(message);
         }
     }
 
     public void OnDisconnected()
     {
-        Debug.Log("OnDisconnected");
+        CommonDebug.Log("OnDisconnected");
         Logout();
     }
 
     public void OnConnected()
     {
-        Debug.Log("OnConnected");
-
+        CommonDebug.Log("OnConnected");
+        
         if(_channels == null || _channels.Length == 0)
         {
             Debug.LogError("접속할 채널이 없습니다.");
@@ -97,16 +91,18 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         _chatClient.SetOnlineStatus(ChatUserStatus.Online);
 
         InitComplete();
+
+        _loadingPopup.ClosePopup();
     }
 
     public void OnChatStateChange(ChatState state)
     {
-        Debug.Log("OnChatStateChange >> state : " + state.ToString());
+        CommonDebug.Log("OnChatStateChange >> state : " + state.ToString());
     }
 
     public void OnGetMessages(string channelName, string[] senders, object[] messages)
     {
-        Debug.Log($"OnGetMessages >> 채널 : {channelName}, 유저 아이디 : {senders[0]}, 메세지 : {messages[0]}");
+        CommonDebug.Log($"OnGetMessages >> 채널 : {channelName}, 유저 아이디 : {senders[0]}, 메세지 : {messages[0]}");
         if(channelName.Equals(_currentChannel))
         {
             UpdateChatMessage(_currentChannel);
@@ -115,7 +111,7 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 
     public void OnPrivateMessage(string sender, object message, string channelName)
     {
-        Debug.Log("OnPrivateMessage");
+        CommonDebug.Log("OnPrivateMessage");
         if (channelName.Equals(_currentChannel))
         {
             UpdateChatMessage(_currentChannel);
@@ -125,7 +121,7 @@ public class ChatManager : MonoBehaviour, IChatClientListener
     
     public void OnSubscribed(string[] channels, bool[] results)
     {
-        Debug.Log("OnSubscribed");
+        CommonDebug.Log("OnSubscribed");
 
         // Array로 받지만 한 채널씩 들어옴.
         foreach (string channel in channels)
@@ -143,22 +139,35 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 
     public void OnUnsubscribed(string[] channels)
     {
-        Debug.Log("OnUnsubscribed");
+        CommonDebug.Log("OnUnsubscribed");
     }
 
     public void OnStatusUpdate(string user, int status, bool gotMessage, object message)
     {
-        Debug.Log("OnStatusUpdate");
+        CommonDebug.Log($"OnStatusUpdate >> UserID : {user}");
+
+        if(status == ChatUserStatus.Online)
+        {
+            _chatUI.AddLoginFriend(user);
+        }
+        else if(status == ChatUserStatus.Offline)
+        {
+            _chatUI.RemoveLoginFriend(user);
+        }
+        else
+        {
+            Debug.LogWarning("온라인, 오프라인 이외의 상태입니다.");
+        }
     }
 
     public void OnUserSubscribed(string channel, string user)
     {
-        Debug.Log($"OnUserSubscribed >> 채널 : {channel}, 유저 아이디 : {user}");
+        CommonDebug.Log($"OnUserSubscribed >> 채널 : {channel}, 유저 아이디 : {user}");
     }
 
     public void OnUserUnsubscribed(string channel, string user)
     {
-        Debug.Log($"OnUserUnsubscribed >> 채널 : {channel}, 유저 아이디 : {user}");
+        CommonDebug.Log($"OnUserUnsubscribed >> 채널 : {channel}, 유저 아이디 : {user}");
     }
     #endregion
 
@@ -166,7 +175,6 @@ public class ChatManager : MonoBehaviour, IChatClientListener
     void Awake()
     {
         _instance = this;
-        OfflineDataManager.Instance.Init();
     }
 
     void Start()
@@ -192,15 +200,18 @@ public class ChatManager : MonoBehaviour, IChatClientListener
     #region Public Method
     public void Login(string userID)
     {
+        _loadingPopup.OpenPopup();
         _userID = userID;
-
-        Connect();
         _loginUI.CloseUI();
         _chatUI.OpenUI();
+        OfflineDataManager.Instance.Init();
+
+        Connect();
     }
 
     public void Logout()
     {
+        RemoveAllFriends();
         Disconnect();
         _loginUI.OpenUI();
         _chatUI.CloseUI();
@@ -220,51 +231,48 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         _chatClient.PublishMessage(_currentChannel, msg);
     }
 
-    public void AddFriend(string friendName)
+    public void AddFriend(string friendID)
     {
         string[] addFriend = new string[1]
         {
-            friendName
+            friendID
         };
 
         _chatClient.AddFriends(addFriend);
     }
 
-    public void RemoveFriend(string friendName)
+    public void RemoveFriend(string friendID)
     {
         string[] removeFriend = new string[1]
         {
-            friendName
+            friendID
         };
 
         _chatClient.RemoveFriends(removeFriend);
+
+        _chatUI.RemoveLoginFriend(friendID);
     }
 
-    public void ResetFriendText()
+    public void RemoveAllFriends()
     {
-        var friendList = OfflineDataManager.Instance.GetFriendsData();
+        var removeFriends = OfflineDataManager.Instance.GetFriendsData().ToArray();
 
-        StringBuilder sb = new StringBuilder();
+        _chatClient.RemoveFriends(removeFriends);
 
-        sb.Append(CHAT_JOIN_FRIEND);
-
-        if (friendList != null)
+        for (int i = 0; i < removeFriends.Length; i++)
         {
-            for (int i = 0; i < friendList.Count; i++)
-            {
-                sb.Append(friendList[i]);
-
-                if (i < friendList.Count - 1)
-                    sb.Append(COMMA);
-            }
+            _chatUI.RemoveLoginFriend(removeFriends[i]);
         }
-
-        _chatUI.ResetFriendText(sb.ToString());
     }
 
     public void OpenFriendPopup()
     {
         _friendPopup.OpenPopup();
+    }
+
+    public void OpenAlertPopup(string msg)
+    {
+        _alertPopup.Open(msg);
     }
     #endregion
 
@@ -272,7 +280,7 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 
     void Connect()
     {
-        //this.UserIdFormPanel.gameObject.SetActive(false);
+        CommonDebug.Log($"ID : {_userID}, 로그인 하였습니다.");
 
         _chatClient = new ChatClient(this);
 #if !UNITY_WEBGL
@@ -280,26 +288,24 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 #endif
 
         _chatClient.Connect(_chatAppSettings.AppId, "1.0", new Photon.Chat.AuthenticationValues(_userID));
-        
-        Debug.Log($"ID : {_userID}, 로그인 하였습니다.");
     }
 
     void Disconnect()
     {
-        Debug.Log($"ID : {_userID}, 로그아웃 하였습니다.");
+        CommonDebug.Log($"ID : {_userID}, 로그아웃 하였습니다.");
 
         _userID = string.Empty;
         if (_chatClient != null)
         {
             _chatClient.Disconnect();
         }
+        _chatClient = null;
     }
 
     // 서버 연결이 완료된 후
     void InitComplete()
     {
         RegistFriends();
-        ResetFriendText();
     }
 
     void RegistFriends()
@@ -307,12 +313,6 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         var friendList = OfflineDataManager.Instance.GetFriendsData();
         if (friendList.Count > 0)
             _chatClient.AddFriends(friendList.ToArray());
-    }
-
-    // 귓속말 송신
-    void SendPrivateMessage(string userID, string msg)
-    {
-        _chatClient.SendPrivateMessage(userID, msg);
     }
 
     void SelectChannel(string channelName)
@@ -329,7 +329,7 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         bool isValid = _chatClient.TryGetChannel(channelName, out channel);
         if (!isValid)
         {
-            Debug.LogError("채널이 존재하지 않습니다. ChannelName : " + channelName);
+            CommonDebug.LogError("채널이 존재하지 않습니다. ChannelName : " + channelName);
             return;
         }
         

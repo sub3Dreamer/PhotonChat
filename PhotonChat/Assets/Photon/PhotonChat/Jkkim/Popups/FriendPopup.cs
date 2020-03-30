@@ -7,6 +7,10 @@ using UnityEngine.UI;
 public class FriendPopup : MonoBehaviour, IPopup
 {
     const string FRIEND_LIST_LABEL = "저장된 친구 : ";
+    const string ADD_MINE = "자기 자신을 추가할 수 없습니다.";
+    const string FRIEND_CNT_FULL = "친구 목록이 가득 찼습니다.";
+    const string FRIEND_OVERLAP = "이미 추가된 친구입니다.";
+    const string FRIEND_NOT_EXIST = "존재하지 않는 친구입니다.";
 
     [SerializeField] GameObject _uiGroup;
     [SerializeField] Text _txtFriendList;
@@ -24,14 +28,8 @@ public class FriendPopup : MonoBehaviour, IPopup
     {
         Clear();
         _uiGroup.SetActive(false);
-        ChatManager.Instance.ResetFriendText();
     }
     #endregion
-    
-    void Awake()
-    {
-        ClosePopup();
-    }
 
     void Clear()
     {
@@ -59,44 +57,65 @@ public class FriendPopup : MonoBehaviour, IPopup
     #region Button Event
     public void OnClickAdd()
     {
-        var friendName = _inputFieldAdd.text;
-        if (string.IsNullOrEmpty(friendName))
+        var friendID = _inputFieldAdd.text;
+        if (string.IsNullOrEmpty(friendID))
             return;
 
         // 자기 자신을 추가 했을때
-        if (ChatManager.Instance.UserName.Equals(friendName))
+        if (ChatManager.Instance.UserID.Equals(friendID))
+        {
+            ChatManager.Instance.OpenAlertPopup(ADD_MINE);
             return;
+        }
 
         // 친구 목록이 가득 찼을때
         if (OfflineDataManager.Instance.IsMaxFriends())
+        {
+            ChatManager.Instance.OpenAlertPopup(FRIEND_CNT_FULL);
             return;
+        }
 
         // 중복된 친구를 추가했을때
-        if (OfflineDataManager.Instance.IsOverlapFriends(friendName))
+        if (OfflineDataManager.Instance.IsHaveFriends(friendID))
+        {
+            ChatManager.Instance.OpenAlertPopup(FRIEND_OVERLAP);
             return;
+        }
 
-        ChatManager.Instance.AddFriend(friendName);
+        ChatManager.Instance.AddFriend(friendID);
         _inputFieldAdd.text = string.Empty;
 
-        OfflineDataManager.Instance.AddFriendsData(friendName);
+        OfflineDataManager.Instance.AddFriendsData(friendID);
         ResetFriendList();
     }
 
     public void OnClickRemove()
     {
-        var friendName = _inputFieldRemove.text;
-        if (string.IsNullOrEmpty(friendName))
+        var friendID = _inputFieldRemove.text;
+        if (string.IsNullOrEmpty(friendID))
             return;
 
-        ChatManager.Instance.RemoveFriend(friendName);
+        // 친구 목록에 없는 친구를 입력했을때
+        if (OfflineDataManager.Instance.IsHaveFriends(friendID) == false)
+        {
+            ChatManager.Instance.OpenAlertPopup(FRIEND_NOT_EXIST);
+            return;
+        }
+
+        ChatManager.Instance.RemoveFriend(friendID);
         _inputFieldRemove.text = string.Empty;
 
-        OfflineDataManager.Instance.RemoveFriendsData(friendName);
+        OfflineDataManager.Instance.RemoveFriendsData(friendID);
+
         ResetFriendList();
     }
 
     public void OnClickRemoveAll()
     {
+        if (OfflineDataManager.Instance.GetFriendsData().Count == 0)
+            return;
+
+        ChatManager.Instance.RemoveAllFriends();
         OfflineDataManager.Instance.ClearFriendsData();
         ResetFriendList();
     }

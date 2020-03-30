@@ -27,6 +27,6 @@ public class LoginUI : MonoBehaviour
             _inputFieldID.text = string.Empty;
         }
         else
-            Debug.Log("로그인 오류! 아이디가 입력되지 않았습니다!");
+            CommonDebug.Log("로그인 오류! 아이디가 입력되지 않았습니다!");
     }
 }
