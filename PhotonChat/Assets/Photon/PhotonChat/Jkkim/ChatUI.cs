@@ -68,7 +68,7 @@ public class ChatUI : MonoBehaviour
         _channelSelector.options.Add(channel);
     }
 
-    public void SetCurrentChannelCaption(string channelName)
+    public void SetCurrentChannel(string channelName)
     {
         if(!_channelSelector.captionText.Equals(channelName))
             _channelSelector.captionText.text = channelName;

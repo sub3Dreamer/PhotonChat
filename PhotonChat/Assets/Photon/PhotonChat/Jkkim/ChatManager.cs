@@ -121,14 +121,11 @@ public class ChatManager : MonoBehaviour, IChatClientListener
     
     public void OnSubscribed(string[] channels, bool[] results)
     {
-        CommonDebug.Log("OnSubscribed");
+        CommonDebug.Log($"OnSubscribed >> 채널명 : {channels[0]}");
 
         // Array로 받지만 한 채널씩 들어옴.
         foreach (string channel in channels)
         {
-            // 드롭다운 초기화.
-            _chatUI.AddChannelSelector(channel);
-
             // Default 채널을 시작 채널로 설정함
             if (channel.Equals(DefaultChannel))
             {
@@ -181,6 +178,10 @@ public class ChatManager : MonoBehaviour, IChatClientListener
     {
         _loginUI.OpenUI();
         _chatUI.CloseUI();
+
+        _friendPopup.ClosePopup();
+        _alertPopup.ClosePopup();
+        _loadingPopup.ClosePopup();
     }
 
     void OnDestroy()
@@ -204,6 +205,9 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         _userID = userID;
         _loginUI.CloseUI();
         _chatUI.OpenUI();
+
+        InitChannelSelector();
+
         OfflineDataManager.Instance.Init();
 
         Connect();
@@ -219,8 +223,6 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 
     public void SetChannel(string channelName)
     {
-        _chatUI.SetCurrentChannelCaption(channelName);
-
         SelectChannel(channelName);
         UpdateChatMessage(channelName);
     }
@@ -300,6 +302,16 @@ public class ChatManager : MonoBehaviour, IChatClientListener
             _chatClient.Disconnect();
         }
         _chatClient = null;
+    }
+
+    void InitChannelSelector()
+    {
+        _chatUI.SetCurrentChannel(DefaultChannel);
+        // 드롭다운 초기화.
+        for (int i = 0; i < _channels.Length; i++)
+        {
+            _chatUI.AddChannelSelector(_channels[i]);
+        }
     }
 
     // 서버 연결이 완료된 후
