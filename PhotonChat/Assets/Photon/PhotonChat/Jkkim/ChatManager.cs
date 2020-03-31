@@ -272,10 +272,14 @@ public class ChatManager : MonoBehaviour, IChatClientListener
         _friendPopup.OpenPopup();
     }
 
-    public void OpenAlertPopup(string msg)
+    public void OpenAlertPopup(string msg, AlertPopup.PopupType popType = AlertPopup.PopupType.Confirm, System.Action confirmCallback = null, System.Action calcelCallback = null)
     {
-        _alertPopup.Open(msg);
+        if (popType == AlertPopup.PopupType.Confirm)
+            _alertPopup.OpenConfirmPopup(msg, confirmCallback);
+        else if (popType == AlertPopup.PopupType.Selectable)
+            _alertPopup.OpenSelectPopup(msg, confirmCallback, calcelCallback);
     }
+
     #endregion
 
     #region Private Method
