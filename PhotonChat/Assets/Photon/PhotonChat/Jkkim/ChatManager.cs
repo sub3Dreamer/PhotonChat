@@ -294,11 +294,10 @@ public class ChatManager : MonoBehaviour, IChatClientListener
 
     void Disconnect()
     {
-        CommonDebug.Log($"ID : {_userID}, 로그아웃 하였습니다.");
-
-        _userID = string.Empty;
         if (_chatClient != null)
         {
+            CommonDebug.Log($"ID : {_userID}, 로그아웃 하였습니다.");
+            _userID = string.Empty;
             _chatClient.Disconnect();
         }
         _chatClient = null;
